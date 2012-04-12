@@ -23,9 +23,9 @@
 
 // Analog
 #define PUMP_WATER_PIN         A0 // Solar water pump
-#define PUMP_OIL_PIN           A1 // Oil pump
-#define BURNER_PIN             A2 // Burner
-#define SOLAR_CELL_PIN         A3 // Solar cell voltag sample pin
+#define BURNER_PIN             A1 // Burner
+#define SOLAR_CELL_PIN         A2 // Solar cell voltag sample pin
+#define A3_PIN                 A3 // 
 #define RTCSDA_PIN             A4 // RTC I2C Interface. Hardwired
 #define RTCSCL_PIN             A5 // RTC I2C Interface. Hardwired
 
@@ -71,7 +71,6 @@ struct Data{
   float solar;
   boolean pump;
   boolean burn;
-  boolean oil;  
   boolean isStored;
 };
 Data rawdata[MAX_RAW_DATA];
@@ -164,12 +163,17 @@ boolean checkSensor(DeviceAddress insensor){
 float getTemperature(DeviceAddress insensor){
   if(checkSensor(insensor)){
     float temp = sensors.getTempC(insensor);
-    Serial.print("Temperature:");
-    Serial.print(temp);
+    if(temp == DEVICE_DISCONNECTED){
+      Serial.println("Sensor error");
+    }else{
+      Serial.print("Temperature:");
+      Serial.println(temp);
+    
+    }
     return temp;
   }
   else{
-    return -999.9;
+    return DEVICE_DISCONNECTED;
   }
 }
 
@@ -304,7 +308,6 @@ void samplingHandling(){
     rawdata[0].solar          = analogRead(SOLAR_CELL_PIN);
     rawdata[0].pump           = true;
     rawdata[0].burn           = true;
-    rawdata[0].oil            = true;
     rawdata[0].isStored       = false;
     newData = 1;
     Serial.println("End Sampling");
@@ -353,12 +356,6 @@ void writeHandling(){
             }
             logfile.print(",");
             if(rawdata[i].burn == 1){
-              logfile.print(1,DEC);
-            }else{
-              logfile.print(0,DEC);
-            }
-            logfile.print(",");
-            if(rawdata[i].oil == 1){
               logfile.print(1,DEC);
             }else{
               logfile.print(0,DEC);
