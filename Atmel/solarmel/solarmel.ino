@@ -285,22 +285,27 @@ void mountHandling(){
      (now.day()   != logdate.day()  )
     ){
     logdate = now;
-    
-    
-    logfilename[0] = 2 + '0';
-    logfilename[1] = 0 + '0';
-    logfilename[2] = 1 + '0';
-    logfilename[3] = 2 + '0';
-    logfilename[5] = 0 + '0';
-    logfilename[6] = 4 + '0';
-    logfilename[8] = 0 + '0';
-    logfilename[9] = 3 + '0';
+    // day
+    logfilename[9] =             now.day()%10      + '0';
+    logfilename[8] = (now.day()-(now.day()%10))/10 + '0';
+    // month    
+    logfilename[6] =               now.month()%10      + '0';
+    logfilename[5] = (now.month()-(now.month()%10))/10 + '0';
+    // year
+    int y1 =  now.year()%10;
+    int y2 = (now.year()                 -y1)/10;
+    int y3 = (now.year()         -(y2*10)-y1)/10;
+    int y4 = (now.year()-(y3*100)-(y2*10)-y1)/10;
+    logfilename[3] = y1 + '0';
+    logfilename[2] = y2 + '0';
+    logfilename[1] = y3 + '0';    
+    logfilename[0] = y4 + '0';
+
     if(ismounted == 1){
       umount();
       mount();
     }
   }
-  // TODO: file filename != current date umount change filename and remount
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
