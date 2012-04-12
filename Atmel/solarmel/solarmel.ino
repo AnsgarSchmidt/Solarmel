@@ -6,8 +6,8 @@
 
 ////////////////// Hardware Settings ///////////////////////////////////////////////////////////////////////
 
-#define COMRX                   0 // Serial Receive PREDEFINED
-#define COMTX                   1 // Serial Transmit PREDEFINED
+#define COMRX_PIN               0 // Serial Receive PREDEFINED
+#define COMTX_PIN               1 // Serial Transmit PREDEFINED
 #define MOUNT_PIN               2 // Button to mount and unmount SD
 #define SAMPLE_NOW_PIN          3 // Button to initiate imidiately sampling
 #define TEMP_DATA_PIN           4 // DataPin for tempsensors
@@ -17,16 +17,16 @@
 #define SD_WRITE_ERROR_LED_PIN  8 // Indicates an error writing to SD card
 #define SD_WRITE_DATA_LED_PIN   9 // Indicates SD access
 #define SD_DATA_PIN            10 // Adafruit SD shield
-#define NIX_11                 11 // MOSI
-#define NIX_12                 12 // MISO
-#define INTERNAL_LED           13 // Onboard LEDSMD/SCK PREDEFINED
+#define MOSI_PIN               11 // MOSI
+#define MISO_PIN               12 // MISO
+#define INTERNAL_LED_PIN       13 // Onboard LEDSMD/SCK PREDEFINED
 
-#define NIX_A0                 A0
-#define NIX_A1                 A1
-#define NIX_A2                 A2
+#define PUMP_WATER_PIN         A0 // Solar water pump
+#define PUMP_OIL_PIN           A1 // Oil pump
+#define BURNER_PIN             A2 // Burner
 #define SOLAR_CELL_PIN         A3 // Solar cell voltag sample pin
-#define RTCSDA                 A4 // RTC I2C Interface. Hardwired
-#define RTCSCL                 A5 // RTC I2C Interface. Hardwired
+#define RTCSDA_PIN             A4 // RTC I2C Interface. Hardwired
+#define RTCSCL_PIN             A5 // RTC I2C Interface. Hardwired
 
 // Temperature Sensors
 DeviceAddress TEMP_OUTDOOR       = {0x28, 0xB9, 0x08, 0xC3, 0x03, 0x00, 0x00, 0xE4};
@@ -58,16 +58,22 @@ File     logfile;                                  // Logfile itself
 char     logfilename[]         = "1970-01-01.csv"; // CurrentFileNameForLogging
 DateTime logdate;
 long     lastsynctime          = 0;                // Last time the data where written to the SD card
+// Temperature
+OneWire           oneWire(TEMP_DATA_PIN);
+DallasTemperature sensors(&oneWire);
+
 // RAW Data
+#define MAX_RAW_DATA 500
 struct Data{
   DateTime date;
   float temperature[6];
   float solar;
-  int pump;
-  int burn;
-  int oil;  
+  boolean pump;
+  boolean burn;
+  boolean oil;  
+  boolean isStored;
 };
-Data rawdata[2];
+Data rawdata[MAX_RAW_DATA];
 
 // RTC
 RTC_DS1307 RTC;
@@ -104,6 +110,9 @@ void setup(){
   digitalWrite(SD_MOUNTED_LED_PIN,     LOW);
   digitalWrite(SD_WRITE_ERROR_LED_PIN, LOW);
 
+  // Serial Communication
+  Serial.begin(9600); // Slow to make sure the connection is stable
+
   // RTC
   Wire.begin();
   RTC.begin();
@@ -112,16 +121,53 @@ void setup(){
   }
 
   // Temperature 
-  OneWire oneWire(TEMP_DATA_PIN);
-  DallasTemperature sensors(&oneWire);
   sensors.begin();
-
-  Serial.begin(9600); // Slow to make sure the connection is stable
-
+  sensors.setResolution(TEMP_12_BIT);
+  if(checkSensor(TEMP_OUTDOOR)){
+    sensors.setResolution(TEMP_OUTDOOR,TEMP_12_BIT);
+  }
+  if(checkSensor(TEMP_TOWARD_FLOR)){
+    sensors.setResolution(TEMP_TOWARD_FLOR,TEMP_12_BIT);
+  }
+  if(checkSensor(TEMP_RETURN_FLOW)){
+    sensors.setResolution(TEMP_RETURN_FLOW,TEMP_12_BIT);
+  }
+  if(checkSensor(TEMP_BOILER_TOP)){
+    sensors.setResolution(TEMP_BOILER_TOP,TEMP_12_BIT);
+  }
+  if(checkSensor(TEMP_BOILER_MIDDLE)){
+    sensors.setResolution(TEMP_BOILER_MIDDLE,TEMP_12_BIT);
+  }
+  if(checkSensor(TEMP_BOILER_BOTTOM)){
+    sensors.setResolution(TEMP_BOILER_BOTTOM,TEMP_12_BIT);
+  }
+  
   // Filename
   logdate = DateTime(RTC.now().unixtime() - 7*86400L); // Set yesterday to force mountHandling to generate new Filename
   mountHandling();
 
+}
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////// Sensor Handling ///////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+boolean checkSensor(DeviceAddress insensor){
+  if(sensors.validAddress(insensor) && sensors.isConnected(insensor)){
+    //
+  }else{
+    Serial.print("Error with sensor. Address not valid or not connected");
+    //TODO printout the Address
+  }  
+}
+
+float getTemperature(DeviceAddress insensor){
+  if(checkSensor(insensor)){
+    float temp = sensors.getTempC(insensor);
+    Serial.print("Temperature:");
+    Serial.print(temp);
+    return temp;
+  }else{
+    return -999.9;
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -233,22 +279,25 @@ void mountHandling(){
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void samplingHandling(){
   if( (millis()-lastSampleTime)>sampleDelay){
-    Serial.println("Ich sample");
     digitalWrite(SAMPLING_LED_PIN,HIGH);
+    Serial.println("Start Sampling");
     lastSampleTime = millis(); // Reset the counter
-    delay(500); // simulate sampling
+    sensors.requestTemperatures(); //Request for all Sensors
+    Serial.println("Sampling requested");
     rawdata[0].date = RTC.now();
-    rawdata[0].temperature[0] = 12.2;
-    rawdata[0].temperature[1] = 22.2;
-    rawdata[0].temperature[2] = 32.2;
-    rawdata[0].temperature[3] = 42.2;
-    rawdata[0].temperature[4] = 52.2;
-    rawdata[0].temperature[5] = 62.2;
-    rawdata[0].solar = 123.5;
-    rawdata[0].pump = 1;
-    rawdata[0].burn = 1;
-    rawdata[0].oil  = 1;
+    rawdata[0].temperature[0] = getTemperature(TEMP_OUTDOOR);
+    rawdata[0].temperature[1] = getTemperature(TEMP_TOWARD_FLOR);
+    rawdata[0].temperature[2] = getTemperature(TEMP_RETURN_FLOW);
+    rawdata[0].temperature[3] = getTemperature(TEMP_BOILER_TOP);
+    rawdata[0].temperature[4] = getTemperature(TEMP_BOILER_MIDDLE);
+    rawdata[0].temperature[5] = getTemperature(TEMP_BOILER_BOTTOM);
+    rawdata[0].solar          = analogRead(SOLAR_CELL_PIN);
+    rawdata[0].pump           = true;
+    rawdata[0].burn           = true;
+    rawdata[0].oil            = true;
+    rawdata[0].isStored       = false;
     newData = 1;
+    Serial.println("End Sampling");
     digitalWrite(SAMPLING_LED_PIN,LOW);
   }
 }
@@ -278,6 +327,10 @@ void writeHandling(){
     else{
       // Store data internal
       newData = 0;
+    }
+    // Shift Data
+    for(int i=MAX_RAW_DATA-1;i>0;i--){
+     rawdata[i] = rawdata[i-1]; 
     }
   }
 }
