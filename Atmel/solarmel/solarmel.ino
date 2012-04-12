@@ -6,20 +6,20 @@
 
 ////////////////// Hardware Settings ///////////////////////////////////////////////////////////////////////
 // Digital
-#define COMRX_PIN               0 // Serial Receive PREDEFINED
-#define COMTX_PIN               1 // Serial Transmit PREDEFINED
-#define MOUNT_PIN               2 // Button to mount and unmount SD
-#define SAMPLE_NOW_PIN          3 // Button to initiate imidiately sampling
-#define TEMP_DATA_PIN           4 // DataPin for tempsensors
-#define LOW_MEM_LED_PIN         5 // Low on internal memory InfoLED. Red LED onboard
-#define SAMPLING_LED_PIN        6 // Sampling in progress.         Green LED onboard
-#define SD_MOUNTED_LED_PIN      7 // Indicates SD is mounted or not
-#define SD_WRITE_ERROR_LED_PIN  8 // Indicates an error writing to SD card
-#define SD_WRITE_DATA_LED_PIN   9 // Indicates SD access
-#define SD_DATA_PIN            10 // Adafruit SD shield
-#define MOSI_PIN               11 // MOSI
-#define MISO_PIN               12 // MISO
-#define INTERNAL_LED_PIN       13 // Onboard LEDSMD/SCK PREDEFINED
+#define COMRX_PIN                  0 // Serial Receive PREDEFINED
+#define COMTX_PIN                  1 // Serial Transmit PREDEFINED
+#define MOUNT_PIN                  2 // Button to mount and unmount SD
+#define SAMPLE_NOW_PIN             3 // Button to initiate imidiately sampling
+#define TEMP_DATA_PIN              4 // DataPin for tempsensors
+#define LOW_MEM_LED_PIN            5 // Low on internal memory InfoLED. Red LED onboard
+#define SAMPLING_LED_PIN           6 // Sampling in progress.         Green LED onboard
+#define SD_MOUNTED_LED_PIN         7 // Indicates SD is mounted or not
+#define SD_WRITE_ERROR_LED_PIN     8 // Indicates an error writing to SD card
+#define SD_WRITE_DATA_LED_PIN      9 // Indicates SD access
+#define SD_DATA_PIN               10 // Adafruit SD shield
+#define MOSI_PIN                  11 // MOSI
+#define MISO_PIN                  12 // MISO
+#define TEMP_SENSOR_ERROR_LED_PIN 13 // Error with Temp Sensor
 
 // Analog
 #define PUMP_WATER_PIN         A0 // Solar water pump
@@ -57,7 +57,7 @@ long     sampleDelay           = 10000;               // Time between samples, i
 long     lastSampleTime        = 0;                   // Timestamp of last sampling
 File     logfile;                                     // Logfile itself
 char     logfilename[]         = "1970-01-01-00.csv"; // CurrentFileNameForLogging
-DateTime logdate;
+DateTime logdate;                                     // Object to store the logfilename as datetime
 long     lastsynctime          = 0;                   // Last time the data where written to the SD card
 // Temperature
 OneWire           oneWire(TEMP_DATA_PIN);
@@ -92,12 +92,13 @@ void setup(){
   digitalWrite(SOLAR_CELL_PIN,   HIGH);
 
   //Output Pins
-  pinMode(LOW_MEM_LED_PIN,        OUTPUT);
-  pinMode(SAMPLING_LED_PIN,       OUTPUT);
-  pinMode(SD_MOUNTED_LED_PIN,     OUTPUT);
-  pinMode(SD_WRITE_ERROR_LED_PIN, OUTPUT);
-  pinMode(SD_DATA_PIN,            OUTPUT);
-  pinMode(TEMP_DATA_PIN,          OUTPUT);
+  pinMode(LOW_MEM_LED_PIN,           OUTPUT);
+  pinMode(SAMPLING_LED_PIN,          OUTPUT);
+  pinMode(SD_MOUNTED_LED_PIN,        OUTPUT);
+  pinMode(SD_WRITE_ERROR_LED_PIN,    OUTPUT);
+  pinMode(SD_DATA_PIN,               OUTPUT);
+  pinMode(TEMP_DATA_PIN,             OUTPUT);
+  pinMode(TEMP_SENSOR_ERROR_LED_PIN, OUTPUT);
 
   // Timers
   lastMountDebounceTime = millis();
@@ -105,10 +106,11 @@ void setup(){
   lastSampleTime        = millis();
 
   // Initial
-  digitalWrite(LOW_MEM_LED_PIN,        LOW);
-  digitalWrite(SAMPLING_LED_PIN,       LOW);
-  digitalWrite(SD_MOUNTED_LED_PIN,     LOW);
-  digitalWrite(SD_WRITE_ERROR_LED_PIN, LOW);
+  digitalWrite(LOW_MEM_LED_PIN,           LOW);
+  digitalWrite(SAMPLING_LED_PIN,          LOW);
+  digitalWrite(SD_MOUNTED_LED_PIN,        LOW);
+  digitalWrite(SD_WRITE_ERROR_LED_PIN,    LOW);
+  digitalWrite(TEMP_SENSOR_ERROR_LED_PIN, LOW);
 
   // Serial Communication
   Serial.begin(9600); // Slow to make sure the connection is stable
@@ -151,25 +153,35 @@ void setup(){
 /////////////////////////////////////////// Sensor Handling ///////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 boolean checkSensor(DeviceAddress insensor){
-  if(sensors.validAddress(insensor) && sensors.isConnected(insensor)){
-    //
+  if(!sensors.validAddress(insensor)){
+    Serial.print("Sensor address not valid:");
+    printSensorAddress(insensor);
+    Serial.println();
+    digitalWrite(TEMP_SENSOR_ERROR_LED_PIN, HIGH);
+    return false;
   }
-  else{
-    Serial.print("Error with sensor. Address not valid or not connected");
-    //TODO printout the Address
+  if(!sensors.isConnected(insensor)){
+    Serial.print("Sensor not connected:");
+    printSensorAddress(insensor);
+    Serial.println();
+    digitalWrite(TEMP_SENSOR_ERROR_LED_PIN, HIGH);
+    return false;
   }  
+  return true;
 }
 
 float getTemperature(DeviceAddress insensor){
   if(checkSensor(insensor)){
     float temp = sensors.getTempC(insensor);
     if(temp == DEVICE_DISCONNECTED){
+      Serial.print("Sensor error:");
       printSensorAddress(insensor);
-      Serial.println("Sensor error");
+      Serial.println();      
+      digitalWrite(TEMP_SENSOR_ERROR_LED_PIN, HIGH);
     }else{
-      Serial.print("Temperature:");
+      printSensorAddress(insensor);
+      Serial.print(" Temperature:");
       Serial.println(temp);
-    
     }
     return temp;
   }
@@ -216,17 +228,14 @@ void ledHandling(){
   if(ismounted == 0){
     digitalWrite(SD_MOUNTED_LED_PIN,     LOW);
     digitalWrite(SD_WRITE_ERROR_LED_PIN, LOW);
-    digitalWrite(LOW_MEM_LED_PIN,        LOW);
   }
   else if(ismounted == 1){
     digitalWrite(SD_MOUNTED_LED_PIN,     HIGH);
     digitalWrite(SD_WRITE_ERROR_LED_PIN, LOW );
-    //digitalWrite(LOW_MEM_LED_PIN,      LOW);
   }
   else{
     digitalWrite(SD_MOUNTED_LED_PIN,     LOW );
     digitalWrite(SD_WRITE_ERROR_LED_PIN, HIGH);    
-    //digitalWrite(LOW_MEM_LED_PIN,      LOW);
   }
 }
 
@@ -237,18 +246,15 @@ void mount(){
   if (SD.begin(SD_DATA_PIN)) {
     if(SD.exists(logfilename)){
       logfile = SD.open(logfilename, FILE_WRITE);
-    }
-    else{
+    }else{
       logfile = SD.open(logfilename, FILE_WRITE);
     }        
     if(logfile){
       ismounted = 1;
-    }
-    else{
+    }else{
       ismounted = 2;
     }
-  }
-  else{
+  }else{
     ismounted = 2;
   }
 }
@@ -257,31 +263,30 @@ void umount(){
     logfile.flush();
     logfile.close();
   }
+  ismounted = 0;
 }
 void mountHandling(){
-  if(mountButtonState == LOW && ((millis()-lastMountTime)>MOUNT_DELAY)){
+  if(mountButtonState == LOW && ((millis()-lastMountTime)>MOUNT_DELAY)){ // LOW because of internal pull up resistor
     Serial.println("Toggle mount");
     lastMountTime = millis(); // Reset counter
     // if mounted umount otherwise try to mount
     if(ismounted == 0){     
       mount();
-    }
-    else if(ismounted == 1){
+    }else if(ismounted == 1){
       umount();
-      ismounted = 0;
-    }
-    else{
+    }else{
       ismounted = 0;            
     }
   }
   // File name Handling
   DateTime now = RTC.now();
-  if(
-  (now.year()  != logdate.year() ) || 
-    (now.month() != logdate.month()) ||
-    (now.day()   != logdate.day()  )
+  if((now.year()  != logdate.year() ) || 
+     (now.month() != logdate.month()) ||
+     (now.day()   != logdate.day()  )
     ){
     logdate = now;
+    
+    
     logfilename[0] = 2 + '0';
     logfilename[1] = 0 + '0';
     logfilename[2] = 1 + '0';
