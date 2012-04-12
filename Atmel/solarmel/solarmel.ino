@@ -5,7 +5,7 @@
 #include <DallasTemperature.h>
 
 ////////////////// Hardware Settings ///////////////////////////////////////////////////////////////////////
-
+// Digital
 #define COMRX_PIN               0 // Serial Receive PREDEFINED
 #define COMTX_PIN               1 // Serial Transmit PREDEFINED
 #define MOUNT_PIN               2 // Button to mount and unmount SD
@@ -21,6 +21,7 @@
 #define MISO_PIN               12 // MISO
 #define INTERNAL_LED_PIN       13 // Onboard LEDSMD/SCK PREDEFINED
 
+// Analog
 #define PUMP_WATER_PIN         A0 // Solar water pump
 #define PUMP_OIL_PIN           A1 // Oil pump
 #define BURNER_PIN             A2 // Burner
@@ -44,20 +45,20 @@ DeviceAddress TEMP_BOILER_BOTTOM = {0x28, 0xD9, 0x0A, 0xC3, 0x03, 0x00, 0x00, 0x
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////// Vars ///////////////////////////////////////////////////////////////////////////////
 // Buttons
-long     lastMountDebounceTime = 0;                // Timestamp for debouncing only neccessary for Mounting. Imidiately sampling is a state
-int      lastMountButtonState  = LOW;              // the previous reading from the input pin
-int      mountButtonState      = LOW;              // the debounced status for input pin
-long     lastMountTime         = 0;                // Timestamp for (un)mounting. 
+long     lastMountDebounceTime = 0;                   // Timestamp for debouncing only neccessary for Mounting. Imidiately sampling is a state
+int      lastMountButtonState  = LOW;                 // the previous reading from the input pin
+int      mountButtonState      = LOW;                 // the debounced status for input pin
+long     lastMountTime         = 0;                   // Timestamp for (un)mounting. 
 // Status
-int      ismounted             = 0;                // SD card mounted (in Use)  0=no,1=yes,2=write error
-int      newData               = LOW;              // New Data available to store
+int      ismounted             = 0;                   // SD card mounted (in Use)  0=no,1=yes,2=write error
+int      newData               = LOW;                 // New Data available to store
 // Data
-long     sampleDelay           = 10000;            // Time between samples, initial 10 secs will be chanced depending on data
-long     lastSampleTime        = 0;                // Timestamp of last sampling
-File     logfile;                                  // Logfile itself
-char     logfilename[]         = "1970-01-01.csv"; // CurrentFileNameForLogging
+long     sampleDelay           = 10000;               // Time between samples, initial 10 secs will be chanced depending on data
+long     lastSampleTime        = 0;                   // Timestamp of last sampling
+File     logfile;                                     // Logfile itself
+char     logfilename[]         = "1970-01-01-00.csv"; // CurrentFileNameForLogging
 DateTime logdate;
-long     lastsynctime          = 0;                // Last time the data where written to the SD card
+long     lastsynctime          = 0;                   // Last time the data where written to the SD card
 // Temperature
 OneWire           oneWire(TEMP_DATA_PIN);
 DallasTemperature sensors(&oneWire);
@@ -141,9 +142,9 @@ void setup(){
   if(checkSensor(TEMP_BOILER_BOTTOM)){
     sensors.setResolution(TEMP_BOILER_BOTTOM,TEMP_12_BIT);
   }
-  
+
   // Filename
-  logdate = DateTime(RTC.now().unixtime() - 7*86400L); // Set yesterday to force mountHandling to generate new Filename
+  logdate = DateTime(RTC.now().unixtime() - 7*86400L); // Set last week to force mountHandling to generate new Filename
   mountHandling();
 
 }
@@ -153,7 +154,8 @@ void setup(){
 boolean checkSensor(DeviceAddress insensor){
   if(sensors.validAddress(insensor) && sensors.isConnected(insensor)){
     //
-  }else{
+  }
+  else{
     Serial.print("Error with sensor. Address not valid or not connected");
     //TODO printout the Address
   }  
@@ -165,7 +167,8 @@ float getTemperature(DeviceAddress insensor){
     Serial.print("Temperature:");
     Serial.print(temp);
     return temp;
-  }else{
+  }
+  else{
     return -999.9;
   }
 }
@@ -200,11 +203,13 @@ void ledHandling(){
     digitalWrite(SD_MOUNTED_LED_PIN,     LOW);
     digitalWrite(SD_WRITE_ERROR_LED_PIN, LOW);
     digitalWrite(LOW_MEM_LED_PIN,        LOW);
-  }else if(ismounted == 1){
+  }
+  else if(ismounted == 1){
     digitalWrite(SD_MOUNTED_LED_PIN,     HIGH);
     digitalWrite(SD_WRITE_ERROR_LED_PIN, LOW );
     //digitalWrite(LOW_MEM_LED_PIN,      LOW);
-  }else{
+  }
+  else{
     digitalWrite(SD_MOUNTED_LED_PIN,     LOW );
     digitalWrite(SD_WRITE_ERROR_LED_PIN, HIGH);    
     //digitalWrite(LOW_MEM_LED_PIN,      LOW);
@@ -215,26 +220,29 @@ void ledHandling(){
 ////////////////////////////////////////////// Mount Handling /////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void mount(){
-      if (SD.begin(SD_DATA_PIN)) {
-        if(SD.exists(logfilename)){
-          logfile = SD.open(logfilename, FILE_WRITE);
-        }else{
-          logfile = SD.open(logfilename, FILE_WRITE);
-        }        
-        if(logfile){
-          ismounted = 1;
-        }else{
-          ismounted = 2;
-        }
-      }else{
-        ismounted = 2;
-      }
+  if (SD.begin(SD_DATA_PIN)) {
+    if(SD.exists(logfilename)){
+      logfile = SD.open(logfilename, FILE_WRITE);
+    }
+    else{
+      logfile = SD.open(logfilename, FILE_WRITE);
+    }        
+    if(logfile){
+      ismounted = 1;
+    }
+    else{
+      ismounted = 2;
+    }
+  }
+  else{
+    ismounted = 2;
+  }
 }
 void umount(){
-      if(logfile){
-        logfile.flush();
-        logfile.close();
-      }
+  if(logfile){
+    logfile.flush();
+    logfile.close();
+  }
 }
 void mountHandling(){
   if(mountButtonState == LOW && ((millis()-lastMountTime)>MOUNT_DELAY)){
@@ -243,33 +251,35 @@ void mountHandling(){
     // if mounted umount otherwise try to mount
     if(ismounted == 0){     
       mount();
-    }else if(ismounted == 1){
+    }
+    else if(ismounted == 1){
       umount();
       ismounted = 0;
-    }else{
+    }
+    else{
       ismounted = 0;            
     }
   }
   // File name Handling
   DateTime now = RTC.now();
   if(
-     (now.year()  != logdate.year() ) || 
-     (now.month() != logdate.month()) ||
-     (now.day()   != logdate.day()  )
-     ){
-       logdate = now;
-       logfilename[0] = 2 + '0';
-       logfilename[1] = 0 + '0';
-       logfilename[2] = 1 + '0';
-       logfilename[3] = 2 + '0';
-       logfilename[5] = 0 + '0';
-       logfilename[6] = 4 + '0';
-       logfilename[8] = 0 + '0';
-       logfilename[9] = 3 + '0';
-       if(ismounted == 1){
-         umount();
-         mount();
-       }
+  (now.year()  != logdate.year() ) || 
+    (now.month() != logdate.month()) ||
+    (now.day()   != logdate.day()  )
+    ){
+    logdate = now;
+    logfilename[0] = 2 + '0';
+    logfilename[1] = 0 + '0';
+    logfilename[2] = 1 + '0';
+    logfilename[3] = 2 + '0';
+    logfilename[5] = 0 + '0';
+    logfilename[6] = 4 + '0';
+    logfilename[8] = 0 + '0';
+    logfilename[9] = 3 + '0';
+    if(ismounted == 1){
+      umount();
+      mount();
+    }
   }
   // TODO: file filename != current date umount change filename and remount
 }
@@ -283,7 +293,7 @@ void samplingHandling(){
     Serial.println("Start Sampling");
     lastSampleTime = millis(); // Reset the counter
     sensors.requestTemperatures(); //Request for all Sensors
-    Serial.println("Sampling requested");
+    Serial.println("Sampling requested now reading");
     rawdata[0].date = RTC.now();
     rawdata[0].temperature[0] = getTemperature(TEMP_OUTDOOR);
     rawdata[0].temperature[1] = getTemperature(TEMP_TOWARD_FLOR);
@@ -307,30 +317,73 @@ void samplingHandling(){
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void writeHandling(){
   if(newData == 1){
+    newData = 0;
     if(ismounted == 1){
       if(logfile){
-        logfile.print("ENTRY");
-        DateTime now = RTC.now();
-        logfile.print(now.year(),DEC);
-        logfile.println(now.unixtime());
-        newData=0;
-        if((millis()-lastsynctime)>WRITE_INTERVAL){
-          digitalWrite(SD_WRITE_DATA_LED_PIN,HIGH);
-          lastsynctime = millis();
-          logfile.flush();
-          digitalWrite(SD_WRITE_DATA_LED_PIN,LOW);
-        }
-      }else{
+        // Check for all entries if they are stored alreay
+        for(int i=MAX_RAW_DATA-1;i>=0;i--){
+          if(rawdata[i].isStored == false){
+            // Write entry
+            // Time
+            logfile.print(rawdata[i].date.year(),DEC);
+            logfile.print("-");
+            logfile.print(rawdata[i].date.month(),DEC);
+            logfile.print("-");
+            logfile.print(rawdata[i].date.day(),DEC);
+            logfile.print(" ");
+            logfile.print(rawdata[i].date.hour(),DEC);
+            logfile.print(":");
+            logfile.print(rawdata[i].date.minute(),DEC);
+            logfile.print(":");
+            logfile.print(rawdata[i].date.second(),DEC);
+            logfile.print(",");
+            logfile.print(rawdata[i].date.unixtime(),DEC);
+            for(int t=0;t<6;t++){
+              // Temp            
+              logfile.print(",");
+              logfile.print(rawdata[i].temperature[t],DEC);
+            }
+            logfile.print(",");
+            logfile.print(rawdata[i].solar,DEC);
+            logfile.print(",");
+            if(rawdata[i].pump == 1){
+              logfile.print(1,DEC);
+            }else{
+              logfile.print(0,DEC);
+            }
+            logfile.print(",");
+            if(rawdata[i].burn == 1){
+              logfile.print(1,DEC);
+            }else{
+              logfile.print(0,DEC);
+            }
+            logfile.print(",");
+            if(rawdata[i].oil == 1){
+              logfile.print(1,DEC);
+            }else{
+              logfile.print(0,DEC);
+            }
+            logfile.println();
+            // Mark as stored on SD
+            rawdata[i].isStored = 1;
+        
+            // Flush data
+            if((millis()-lastsynctime)>WRITE_INTERVAL){
+              digitalWrite(SD_WRITE_DATA_LED_PIN,HIGH);
+              lastsynctime = millis();
+              logfile.flush();
+              digitalWrite(SD_WRITE_DATA_LED_PIN,LOW);
+            }
+          }
+        }        
+      }
+      else{
         ismounted = 2;
       }
     }
-    else{
-      // Store data internal
-      newData = 0;
-    }
     // Shift Data
     for(int i=MAX_RAW_DATA-1;i>0;i--){
-     rawdata[i] = rawdata[i-1]; 
+      rawdata[i] = rawdata[i-1]; 
     }
   }
 }
