@@ -3,24 +3,40 @@
 #include "RTClib.h"
 
 ////////////////// Hardware Settings ///////////////////////////////////////////////////////////////////////
+//Pre definded keys
+#define COMRX                   0 // Serial Receive 
+#define COMTX                   1 // Serial Transmit
+#define INTERNAL_LED           13 // Onboard LED SMD
+
 // Input Buttons
-#define MOUNT_PIN               0 // Button to mount and unmount SD
-#define SAMPLE_NOW_PIN          1 // Button to initiate imidiately sampling
+#define MOUNT_PIN               2 // Button to mount and unmount SD
+#define SAMPLE_NOW_PIN          3 // Button to initiate imidiately sampling
 
 // Input Sensor
-#define TEMP_DATA_PIN          A1 // DataPin for tempsensors
-#define SOLAR_CELL_PIN         A0 // Solar cell voltag sample pin
+#define TEMP_DATA_PIN           4 // DataPin for tempsensors
+#define SOLAR_CELL_PIN         A5 // Solar cell voltag sample pin
 
 // Output LED
-#define LOW_MEM_LED_PIN         3 // Low on internal memory InfoLED. Red LED onboard
-#define SAMPLING_LED_PIN        4 // Sampling in progress.         Green LED onboard
-#define SD_MOUNTED_LED_PIN      5 // Indicates SD is mounted or not
-#define SD_WRITE_ERROR_LED_PIN  6 // Indicates an error writing to SD card
-#define SD_WRITE_DATA_LED_PIN   7 // Indicates SD access
+#define LOW_MEM_LED_PIN         5 // Low on internal memory InfoLED. Red LED onboard
+#define SAMPLING_LED_PIN        6 // Sampling in progress.         Green LED onboard
+#define SD_MOUNTED_LED_PIN      7 // Indicates SD is mounted or not
+#define SD_WRITE_ERROR_LED_PIN  8 // Indicates an error writing to SD card
+#define SD_WRITE_DATA_LED_PIN   9 // Indicates SD access
 
 #define RTCSDA                 A4 // RTC I2C Interface. Hardwired
 #define RTCSCL                 A5 // RTC I2C Interface. Hardwired
 #define SD_DATA_PIN            10 // Adafruit SD shield
+
+// Temperature Sensors
+//#define TEMP_OUTDOOR         0x28, 0xB9, 0x08, 0xC3, 0x03, 0x00, 0x00, 0xE4
+//#define TEMP_TOWARD_FLOR     0x28, 0x7B, 0x36, 0xC3, 0x03, 0x00, 0x00, 0x33
+//#define TEMP_RETURN_FLOW     0x28, 0x0D, 0xF9, 0xC2, 0x03, 0x00, 0x00, 0xDB
+//#define TEMP_BOILER_TOP      0x28, 0x8B, 0x1D, 0xC3, 0x03, 0x00, 0x00, 0xC9
+//#define TEMP_BOILER_MIDDLE   0x28, 0xF5, 0x06, 0xC3, 0x03, 0x00, 0x00, 0x4E
+//#define TEMP_BOILER_BOTTOM   0x28, 0xD9, 0x0A, 0xC3, 0x03, 0x00, 0x00, 0xA4 
+
+DeviceAddress insideThermometer = { 0x28, 0x94, 0xE2, 0xDF, 0x02, 0x00, 0x00, 0xFE };
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////// Constants //////////////////////////////////////////////////////////////////////////////
 #define DEBOUNCE_DELAY         50 // debounceDelay for Button in millis
@@ -60,11 +76,17 @@ RTC_DS1307 RTC;
 
 /////////////////////////////////////////// Setup routine /////////////////////////////////////////////////////
 void setup(){
-  // Pins
+  //Pins input
   pinMode(MOUNT_PIN,        INPUT);
   pinMode(SAMPLE_NOW_PIN,   INPUT);
   pinMode(SOLAR_CELL_PIN,   INPUT);
 
+  //Enable Pull up resistors
+  digitalWrite(MOUNT_PIN,        HIGH);
+  digitalWrite(SAMPLE_NOW_PIN,   HIGH);
+  digitalWrite(SOLAR_CELL_PIN,   HIGH);
+
+  //Output Pins
   pinMode(LOW_MEM_LED_PIN,        OUTPUT);
   pinMode(SAMPLING_LED_PIN,       OUTPUT);
   pinMode(SD_MOUNTED_LED_PIN,     OUTPUT);
@@ -115,7 +137,7 @@ void buttonHandling(){
   lastMountButtonState = reading;
 
   // Sample now
-  if(digitalRead(SAMPLE_NOW_PIN)){
+  if(digitalRead(SAMPLE_NOW_PIN) == LOW){
     lastSampleTime = 0; // Reset Sampling Time in order to force a sample;
   }  
 }
@@ -165,7 +187,8 @@ void umount(){
       }
 }
 void mountHandling(){
-  if(mountButtonState == HIGH && ((millis()-lastMountTime)>MOUNT_DELAY)){
+  if(mountButtonState == LOW && ((millis()-lastMountTime)>MOUNT_DELAY)){
+    Serial.println("Toggle mount");
     lastMountTime = millis(); // Reset counter
     // if mounted umount otherwise try to mount
     if(ismounted == 0){     
@@ -206,6 +229,7 @@ void mountHandling(){
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void samplingHandling(){
   if( (millis()-lastSampleTime)>sampleDelay){
+    Serial.println("Ich sample");
     digitalWrite(SAMPLING_LED_PIN,HIGH);
     lastSampleTime = millis(); // Reset the counter
     delay(500); // simulate sampling
