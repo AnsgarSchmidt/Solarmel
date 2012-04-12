@@ -1,41 +1,40 @@
 #include <SD.h>
 #include <Wire.h>
 #include "RTClib.h"
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
 ////////////////// Hardware Settings ///////////////////////////////////////////////////////////////////////
-//Pre definded keys
-#define COMRX                   0 // Serial Receive 
-#define COMTX                   1 // Serial Transmit
-#define INTERNAL_LED           13 // Onboard LED SMD
 
-// Input Buttons
+#define COMRX                   0 // Serial Receive PREDEFINED
+#define COMTX                   1 // Serial Transmit PREDEFINED
 #define MOUNT_PIN               2 // Button to mount and unmount SD
 #define SAMPLE_NOW_PIN          3 // Button to initiate imidiately sampling
-
-// Input Sensor
 #define TEMP_DATA_PIN           4 // DataPin for tempsensors
-#define SOLAR_CELL_PIN         A5 // Solar cell voltag sample pin
-
-// Output LED
 #define LOW_MEM_LED_PIN         5 // Low on internal memory InfoLED. Red LED onboard
 #define SAMPLING_LED_PIN        6 // Sampling in progress.         Green LED onboard
 #define SD_MOUNTED_LED_PIN      7 // Indicates SD is mounted or not
 #define SD_WRITE_ERROR_LED_PIN  8 // Indicates an error writing to SD card
 #define SD_WRITE_DATA_LED_PIN   9 // Indicates SD access
+#define SD_DATA_PIN            10 // Adafruit SD shield
+#define NIX_11                 11 // MOSI
+#define NIX_12                 12 // MISO
+#define INTERNAL_LED           13 // Onboard LEDSMD/SCK PREDEFINED
 
+#define NIX_A0                 A0
+#define NIX_A1                 A1
+#define NIX_A2                 A2
+#define SOLAR_CELL_PIN         A3 // Solar cell voltag sample pin
 #define RTCSDA                 A4 // RTC I2C Interface. Hardwired
 #define RTCSCL                 A5 // RTC I2C Interface. Hardwired
-#define SD_DATA_PIN            10 // Adafruit SD shield
 
 // Temperature Sensors
-//#define TEMP_OUTDOOR         0x28, 0xB9, 0x08, 0xC3, 0x03, 0x00, 0x00, 0xE4
-//#define TEMP_TOWARD_FLOR     0x28, 0x7B, 0x36, 0xC3, 0x03, 0x00, 0x00, 0x33
-//#define TEMP_RETURN_FLOW     0x28, 0x0D, 0xF9, 0xC2, 0x03, 0x00, 0x00, 0xDB
-//#define TEMP_BOILER_TOP      0x28, 0x8B, 0x1D, 0xC3, 0x03, 0x00, 0x00, 0xC9
-//#define TEMP_BOILER_MIDDLE   0x28, 0xF5, 0x06, 0xC3, 0x03, 0x00, 0x00, 0x4E
-//#define TEMP_BOILER_BOTTOM   0x28, 0xD9, 0x0A, 0xC3, 0x03, 0x00, 0x00, 0xA4 
-
-DeviceAddress insideThermometer = { 0x28, 0x94, 0xE2, 0xDF, 0x02, 0x00, 0x00, 0xFE };
+DeviceAddress TEMP_OUTDOOR       = {0x28, 0xB9, 0x08, 0xC3, 0x03, 0x00, 0x00, 0xE4};
+DeviceAddress TEMP_TOWARD_FLOR   = {0x28, 0x7B, 0x36, 0xC3, 0x03, 0x00, 0x00, 0x33};
+DeviceAddress TEMP_RETURN_FLOW   = {0x28, 0x0D, 0xF9, 0xC2, 0x03, 0x00, 0x00, 0xDB};
+DeviceAddress TEMP_BOILER_TOP    = {0x28, 0x8B, 0x1D, 0xC3, 0x03, 0x00, 0x00, 0xC9};
+DeviceAddress TEMP_BOILER_MIDDLE = {0x28, 0xF5, 0x06, 0xC3, 0x03, 0x00, 0x00, 0x4E};
+DeviceAddress TEMP_BOILER_BOTTOM = {0x28, 0xD9, 0x0A, 0xC3, 0x03, 0x00, 0x00, 0xA4};
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////// Constants //////////////////////////////////////////////////////////////////////////////
@@ -111,6 +110,11 @@ void setup(){
   if (! RTC.isrunning()) {
     RTC.adjust(DateTime(__DATE__, __TIME__));
   }
+
+  // Temperature 
+  OneWire oneWire(TEMP_DATA_PIN);
+  DallasTemperature sensors(&oneWire);
+  sensors.begin();
 
   Serial.begin(9600); // Slow to make sure the connection is stable
 
