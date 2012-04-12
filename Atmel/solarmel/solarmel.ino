@@ -164,6 +164,7 @@ float getTemperature(DeviceAddress insensor){
   if(checkSensor(insensor)){
     float temp = sensors.getTempC(insensor);
     if(temp == DEVICE_DISCONNECTED){
+      printSensorAddress(insensor);
       Serial.println("Sensor error");
     }else{
       Serial.print("Temperature:");
@@ -175,6 +176,15 @@ float getTemperature(DeviceAddress insensor){
   else{
     return DEVICE_DISCONNECTED;
   }
+}
+
+void printSensorAddress(DeviceAddress insensor){
+ for(int i=0;i<8;i++){
+   Serial.print(insensor[i],HEX);
+   if(i<7){
+     Serial.print(":");
+   }
+ } 
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
