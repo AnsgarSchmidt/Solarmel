@@ -148,6 +148,18 @@ void setup(){
   logdate = DateTime(RTC.now().unixtime() - 7*86400L); // Set last week to force mountHandling to generate new Filename
   mountHandling();
 
+  // Data storage
+  for(int i=0;i<MAX_RAW_DATA;i++){
+    rawdata[i].date             = 0;
+    for(int t=0;t<6;t++){
+      rawdata[i].temperature[t] = 0.0;
+    }
+    rawdata[i].solar            = 0.0;
+    rawdata[i].pump             = false;
+    rawdata[i].burn             = false;
+    rawdata[i].isStored         = true; // No need to write empty data on SD card
+  }
+
 }
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////// Sensor Handling ///////////////////////////////////////////////////
@@ -244,11 +256,7 @@ void ledHandling(){
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void mount(){
   if (SD.begin(SD_DATA_PIN)) {
-    if(SD.exists(logfilename)){
-      logfile = SD.open(logfilename, FILE_WRITE);
-    }else{
-      logfile = SD.open(logfilename, FILE_WRITE);
-    }        
+    logfile = SD.open(logfilename, FILE_WRITE);
     if(logfile){
       ismounted = 1;
     }else{
@@ -410,12 +418,31 @@ void writeHandling(){
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void freeSpaceHandling(){
   if(ismounted == 1){
-    if(1){
+    if(1){ //TODO: Some magic on how measure free space
       digitalWrite(LOW_MEM_LED_PIN,HIGH);
     }else{
       digitalWrite(LOW_MEM_LED_PIN,LOW);
     }
+  }else{
+    digitalWrite(LOW_MEM_LED_PIN,LOW);
   }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////// FreeSpace Handling /////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void calculateSamplingRate(){
+  if(rawdata[0].burn == true){
+    sampleDelay = 1000; // Every Second
+    return;
+  }
+  if(rawdata[0].pump == true){
+    sampleDelay = 2000; // On Solarpower every 2 seconds
+    return;
+  }
+
+  // Default
+  sampleDelay = 10*1000;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -428,5 +455,6 @@ void loop(){
   samplingHandling();
   writeHandling();
   freeSpaceHandling();
+  calculateSamplingRate();
 }
 
