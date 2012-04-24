@@ -47,7 +47,7 @@ DeviceAddress TEMP_BOILER_BOTTOM   = {0x28, 0xD9, 0x0A, 0xC3, 0x03, 0x00, 0x00, 
 #define MOUNT_DELAY            10000 // delay between mount and unmount in millis
 #define WRITE_INTERVAL     5*60*1000 // delay for flushing data to SD
 
-#define MAX_RAW_DATA             500 // Amount of Raw data stored localy
+#define MAX_RAW_DATA               5 // Amount of Raw data stored localy
 ////////////////////////// Vars ///////////////////////////////////////////////////////////////////////////////
 // Buttons
 uint32_t          lastMountDebounceTime   = 0L;                  // Timestamp for debouncing mount push button
@@ -79,9 +79,18 @@ struct Data{
   uint8_t  isStored;
 };
 Data rawdata[MAX_RAW_DATA];
+// SD Card
+Sd2Card  card;
+SdVolume volume;
+SdFile   root;
 
 /////////////////////////////////////////// Setup routine /////////////////////////////////////////////////////
 void setup(){
+  // Serial Communication
+  Serial.begin(9600); // Slow to make sure the connection is stable
+  
+  Serial.println("Serial communication established now setting up");
+
   //Pins input
   pinMode     (MOUNT_PIN,                 INPUT );
   pinMode     (SAMPLE_NOW_PIN,            INPUT );
@@ -107,9 +116,6 @@ void setup(){
   digitalWrite(SD_MOUNTED_LED_PIN,        LOW);
   digitalWrite(SD_WRITE_ERROR_LED_PIN,    LOW);
   digitalWrite(TEMP_SENSOR_ERROR_LED_PIN, LOW);
-
-  // Serial Communication
-  Serial.begin(9600); // Slow to make sure the connection is stable
 
   // Timers
   lastMountDebounceTime = millis();
@@ -147,8 +153,22 @@ void setup(){
 
   // Filename
   logdate = DateTime(RTC.now().unixtime() - (100000L)); // Set past date to force mountHandling to generate new Filename
-  mountHandling();
+  mountHandling();                                      // Calculate new filename
+  mount();                                              // Mount SD Card per default 
 
+/*
+  if (!card.init(SPI_HALF_SPEED, SD_DATA_PIN)) {
+    Serial.println("initialization failed. Things to check:");
+    Serial.println("* is a card is inserted?");
+    Serial.println("* Is your wiring correct?");
+    Serial.println("* did you change the chipSelect pin to match your shield or module?");
+    return;
+  } else {
+   Serial.println("Wiring is correct and a card is present."); 
+  }
+*/
+
+  Serial.println("Setup ready starting mainloop");
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -218,6 +238,7 @@ void buttonHandling(){
 
   // Sample now
   if(digitalRead(SAMPLE_NOW_PIN) == LOW){ //Button inverted for pull up resistor
+    Serial.println("SAMPLE NOW");
     lastSampleTime = 0; // Reset Sampling Time in order to force a sample;
   }  
 }
@@ -243,10 +264,13 @@ void ledHandling(){
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void mount(){
   if (SD.begin(SD_DATA_PIN)) {
+    Serial.println("Trying to mount");
     logfile = SD.open(logfilename, FILE_WRITE);
     if(logfile){
+      Serial.println("Mounted");
       ismounted = SD_MOUNTED;
     }else{
+      Serial.println("Mount Error");
       ismounted = SD_WRITE_ERROR;
     }
   }else{
@@ -286,10 +310,10 @@ void mountHandling(){
     logfilename[6] =               now.month()%10      + '0';
     logfilename[5] = (now.month()-(now.month()%10))/10 + '0';
     // year
-    uint8_t y1 =  now.year()%10;
-    uint8_t y2 = (now.year()                 -y1)/10;
-    uint8_t y3 = (now.year()         -(y2*10)-y1)/10;
-    uint8_t y4 = (now.year()-(y3*100)-(y2*10)-y1)/10;
+    uint8_t y1 =   now.year()                           %10;
+    uint8_t y2 = ((now.year()                 -y1)/  10)%10;
+    uint8_t y3 = ((now.year()         -(y2*10)-y1)/ 100)%10;
+    uint8_t y4 = ((now.year()-(y3*100)-(y2*10)-y1)/1000)%10;
     logfilename[3] = y1 + '0';
     logfilename[2] = y2 + '0';
     logfilename[1] = y3 + '0';    
@@ -321,8 +345,8 @@ void samplingHandling(){
     rawdata[0].temperature[4] = getTemperature(TEMP_BOILER_MIDDLE);
     rawdata[0].temperature[5] = getTemperature(TEMP_BOILER_BOTTOM);
     rawdata[0].solar          = analogRead    (SOLAR_CELL_PIN    );
-    rawdata[0].pump           = true;  //dummy
-    rawdata[0].burn           = true;  //dummy
+    rawdata[0].pump           = false;  //dummy
+    rawdata[0].burn           = false;  //dummy
     rawdata[0].isStored       = false; //new unstored data, will be handeled by writeHandling
     newData = 1; // semaphore for writeHandling
     Serial.println("End Sampling");
