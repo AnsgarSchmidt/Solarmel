@@ -22,20 +22,20 @@
 #define TEMP_SENSOR_ERROR_LED_PIN 13 // Error with Temp Sensor
 
 // Analog
-#define PUMP_WATER_PIN         A0 // Solar water pump
-#define BURNER_PIN             A1 // Burner
-#define SOLAR_CELL_PIN         A2 // Solar cell voltag sample pin
-#define A3_PIN                 A3 // 
-#define RTCSDA_PIN             A4 // RTC I2C Interface. Hardwired
-#define RTCSCL_PIN             A5 // RTC I2C Interface. Hardwired
+#define PUMP_WATER_PIN            A0 // Solar water pump
+#define BURNER_PIN                A1 // Burner
+#define SOLAR_CELL_PIN            A2 // Solar cell voltag sample pin
+#define A3_PIN                    A3 // 
+#define RTCSDA_PIN                A4 // RTC I2C Interface. Hardwired
+#define RTCSCL_PIN                A5 // RTC I2C Interface. Hardwired
 
 // Temperature Sensors
-DeviceAddress TEMP_OUTDOOR       = {0x28, 0xB9, 0x08, 0xC3, 0x03, 0x00, 0x00, 0xE4};
-DeviceAddress TEMP_TOWARD_FLOR   = {0x28, 0x7B, 0x36, 0xC3, 0x03, 0x00, 0x00, 0x33};
-DeviceAddress TEMP_RETURN_FLOW   = {0x28, 0x0D, 0xF9, 0xC2, 0x03, 0x00, 0x00, 0xDB};
-DeviceAddress TEMP_BOILER_TOP    = {0x28, 0x8B, 0x1D, 0xC3, 0x03, 0x00, 0x00, 0xC9};
-DeviceAddress TEMP_BOILER_MIDDLE = {0x28, 0xF5, 0x06, 0xC3, 0x03, 0x00, 0x00, 0x4E};
-DeviceAddress TEMP_BOILER_BOTTOM = {0x28, 0xD9, 0x0A, 0xC3, 0x03, 0x00, 0x00, 0xA4};
+DeviceAddress TEMP_OUTDOOR         = {0x28, 0xB9, 0x08, 0xC3, 0x03, 0x00, 0x00, 0xE4};
+DeviceAddress TEMP_TOWARD_FLOR     = {0x28, 0x7B, 0x36, 0xC3, 0x03, 0x00, 0x00, 0x33};
+DeviceAddress TEMP_RETURN_FLOW     = {0x28, 0x0D, 0xF9, 0xC2, 0x03, 0x00, 0x00, 0xDB};
+DeviceAddress TEMP_BOILER_TOP      = {0x28, 0x8B, 0x1D, 0xC3, 0x03, 0x00, 0x00, 0xC9};
+DeviceAddress TEMP_BOILER_MIDDLE   = {0x28, 0xF5, 0x06, 0xC3, 0x03, 0x00, 0x00, 0x4E};
+DeviceAddress TEMP_BOILER_BOTTOM   = {0x28, 0xD9, 0x0A, 0xC3, 0x03, 0x00, 0x00, 0xA4};
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////// Constants //////////////////////////////////////////////////////////////////////////////
@@ -45,20 +45,20 @@ DeviceAddress TEMP_BOILER_BOTTOM = {0x28, 0xD9, 0x0A, 0xC3, 0x03, 0x00, 0x00, 0x
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////// Vars ///////////////////////////////////////////////////////////////////////////////
 // Buttons
-long     lastMountDebounceTime = 0;                   // Timestamp for debouncing only neccessary for Mounting. Imidiately sampling is a state
-int      lastMountButtonState  = LOW;                 // the previous reading from the input pin
-int      mountButtonState      = LOW;                 // the debounced status for input pin
-long     lastMountTime         = 0;                   // Timestamp for (un)mounting. 
+uint32_t     lastMountDebounceTime = 0;                   // Timestamp for debouncing only neccessary for Mounting. Imidiately sampling is a state
+uint8_t      lastMountButtonState  = LOW;                 // the previous reading from the input pin
+uint8_t      mountButtonState      = LOW;                 // the debounced status for input pin
+uint32_t     lastMountTime         = 0;                   // Timestamp for (un)mounting. 
 // Status
-int      ismounted             = 0;                   // SD card mounted (in Use)  0=no,1=yes,2=write error
-int      newData               = LOW;                 // New Data available to store
+uint8_t      ismounted             = 0;                   // SD card mounted (in Use)  0=no,1=yes,2=write error
+uint8_t      newData               = LOW;                 // New Data available to store
 // Data
-long     sampleDelay           = 10000;               // Time between samples, initial 10 secs will be chanced depending on data
-long     lastSampleTime        = 0;                   // Timestamp of last sampling
-File     logfile;                                     // Logfile itself
-char     logfilename[]         = "1970-01-01-00.csv"; // CurrentFileNameForLogging
-DateTime logdate;                                     // Object to store the logfilename as datetime
-long     lastsynctime          = 0;                   // Last time the data where written to the SD card
+uint16_t     sampleDelay           = 10000;               // Time between samples, initial 10 secs will be chanced depending on data
+uint32_t     lastSampleTime        = 0;                   // Timestamp of last sampling
+File         logfile;                                     // Logfile itself
+char         logfilename[]         = "1970-01-01-00.csv"; // CurrentFileNameForLogging
+DateTime     logdate;                                     // Object to store the logfilename as datetime
+uint32_t     lastsynctime          = 0;                   // Last time the data where written to the SD card
 // Temperature
 OneWire           oneWire(TEMP_DATA_PIN);
 DallasTemperature sensors(&oneWire);
@@ -67,11 +67,11 @@ DallasTemperature sensors(&oneWire);
 #define MAX_RAW_DATA 500
 struct Data{
   DateTime date;
-  float temperature[6];
-  float solar;
-  boolean pump;
-  boolean burn;
-  boolean isStored;
+  float    temperature[6];
+  float    solar;
+  boolean  pump;        // uint8_t
+  boolean  burn;        // uint8_t
+  boolean  isStored;    // uint8_t
 };
 Data rawdata[MAX_RAW_DATA];
 
@@ -82,23 +82,23 @@ RTC_DS1307 RTC;
 /////////////////////////////////////////// Setup routine /////////////////////////////////////////////////////
 void setup(){
   //Pins input
-  pinMode(MOUNT_PIN,        INPUT);
-  pinMode(SAMPLE_NOW_PIN,   INPUT);
-  pinMode(SOLAR_CELL_PIN,   INPUT);
+  pinMode     (MOUNT_PIN,                 INPUT );
+  pinMode     (SAMPLE_NOW_PIN,            INPUT );
+  pinMode     (SOLAR_CELL_PIN,            INPUT );
 
   //Enable Pull up resistors
-  digitalWrite(MOUNT_PIN,        HIGH);
-  digitalWrite(SAMPLE_NOW_PIN,   HIGH);
-  digitalWrite(SOLAR_CELL_PIN,   HIGH);
+  digitalWrite(MOUNT_PIN,                 HIGH  );
+  digitalWrite(SAMPLE_NOW_PIN,            HIGH  );
+  digitalWrite(SOLAR_CELL_PIN,            HIGH  );
 
   //Output Pins
-  pinMode(LOW_MEM_LED_PIN,           OUTPUT);
-  pinMode(SAMPLING_LED_PIN,          OUTPUT);
-  pinMode(SD_MOUNTED_LED_PIN,        OUTPUT);
-  pinMode(SD_WRITE_ERROR_LED_PIN,    OUTPUT);
-  pinMode(SD_DATA_PIN,               OUTPUT);
-  pinMode(TEMP_DATA_PIN,             OUTPUT);
-  pinMode(TEMP_SENSOR_ERROR_LED_PIN, OUTPUT);
+  pinMode     (LOW_MEM_LED_PIN,           OUTPUT);
+  pinMode     (SAMPLING_LED_PIN,          OUTPUT);
+  pinMode     (SD_MOUNTED_LED_PIN,        OUTPUT);
+  pinMode     (SD_WRITE_ERROR_LED_PIN,    OUTPUT);
+  pinMode     (SD_DATA_PIN,               OUTPUT);
+  pinMode     (TEMP_DATA_PIN,             OUTPUT);
+  pinMode     (TEMP_SENSOR_ERROR_LED_PIN, OUTPUT);
 
   // Timers
   lastMountDebounceTime = millis();
@@ -149,9 +149,9 @@ void setup(){
   mountHandling();
 
   // Data storage
-  for(int i=0;i<MAX_RAW_DATA;i++){
+  for(uint8_t i=0;i<MAX_RAW_DATA;i++){
     rawdata[i].date             = 0;
-    for(int t=0;t<6;t++){
+    for(uint8_t t=0;t<6;t++){
       rawdata[i].temperature[t] = 0.0;
     }
     rawdata[i].solar            = 0.0;
@@ -190,7 +190,8 @@ float getTemperature(DeviceAddress insensor){
       printSensorAddress(insensor);
       Serial.println();      
       digitalWrite(TEMP_SENSOR_ERROR_LED_PIN, HIGH);
-    }else{
+    }
+    else{
       printSensorAddress(insensor);
       Serial.print(" Temperature:");
       Serial.println(temp);
@@ -203,12 +204,12 @@ float getTemperature(DeviceAddress insensor){
 }
 
 void printSensorAddress(DeviceAddress insensor){
- for(int i=0;i<8;i++){
-   Serial.print(insensor[i],HEX);
-   if(i<7){
-     Serial.print(":");
-   }
- } 
+  for(uint8_t i=0;i<8;i++){
+    Serial.print(insensor[i],HEX);
+    if(i<7){
+      Serial.print(":");
+    }
+  } 
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -216,7 +217,7 @@ void printSensorAddress(DeviceAddress insensor){
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void buttonHandling(){
   // Mount
-  int reading = digitalRead(MOUNT_PIN);
+  uint8_t reading = digitalRead(MOUNT_PIN);
   if (reading != lastMountButtonState) {
     lastMountDebounceTime = millis();
   } 
@@ -259,10 +260,12 @@ void mount(){
     logfile = SD.open(logfilename, FILE_WRITE);
     if(logfile){
       ismounted = 1;
-    }else{
+    }
+    else{
       ismounted = 2;
     }
-  }else{
+  }
+  else{
     ismounted = 2;
   }
 }
@@ -280,17 +283,19 @@ void mountHandling(){
     // if mounted umount otherwise try to mount
     if(ismounted == 0){     
       mount();
-    }else if(ismounted == 1){
+    }
+    else if(ismounted == 1){
       umount();
-    }else{
+    }
+    else{
       ismounted = 0;            
     }
   }
   // File name Handling
   DateTime now = RTC.now();
   if((now.year()  != logdate.year() ) || 
-     (now.month() != logdate.month()) ||
-     (now.day()   != logdate.day()  )
+    (now.month() != logdate.month()) ||
+    (now.day()   != logdate.day()  )
     ){
     logdate = now;
     // day
@@ -300,10 +305,10 @@ void mountHandling(){
     logfilename[6] =               now.month()%10      + '0';
     logfilename[5] = (now.month()-(now.month()%10))/10 + '0';
     // year
-    int y1 =  now.year()%10;
-    int y2 = (now.year()                 -y1)/10;
-    int y3 = (now.year()         -(y2*10)-y1)/10;
-    int y4 = (now.year()-(y3*100)-(y2*10)-y1)/10;
+    uint8_t y1 =  now.year()%10;
+    uint8_t y2 = (now.year()                 -y1)/10;
+    uint8_t y3 = (now.year()         -(y2*10)-y1)/10;
+    uint8_t y4 = (now.year()-(y3*100)-(y2*10)-y1)/10;
     logfilename[3] = y1 + '0';
     logfilename[2] = y2 + '0';
     logfilename[1] = y3 + '0';    
@@ -352,7 +357,7 @@ void writeHandling(){
     if(ismounted == 1){
       if(logfile){
         // Check for all entries if they are stored alreay
-        for(int i=MAX_RAW_DATA-1;i>=0;i--){
+        for(uint8_t i=MAX_RAW_DATA-1;i>=0;i--){
           if(rawdata[i].isStored == false){
             // Write entry
             // Time
@@ -369,7 +374,7 @@ void writeHandling(){
             logfile.print(rawdata[i].date.second(),DEC);
             logfile.print(",");
             logfile.print(rawdata[i].date.unixtime(),DEC);
-            for(int t=0;t<6;t++){
+            for(uint8_t t=0;t<6;t++){
               // Temp            
               logfile.print(",");
               logfile.print(rawdata[i].temperature[t],DEC);
@@ -379,19 +384,21 @@ void writeHandling(){
             logfile.print(",");
             if(rawdata[i].pump == 1){
               logfile.print(1,DEC);
-            }else{
+            }
+            else{
               logfile.print(0,DEC);
             }
             logfile.print(",");
             if(rawdata[i].burn == 1){
               logfile.print(1,DEC);
-            }else{
+            }
+            else{
               logfile.print(0,DEC);
             }
             logfile.println();
             // Mark as stored on SD
             rawdata[i].isStored = 1;
-        
+
             // Flush data
             if((millis()-lastsynctime)>WRITE_INTERVAL){
               digitalWrite(SD_WRITE_DATA_LED_PIN,HIGH);
@@ -407,7 +414,7 @@ void writeHandling(){
       }
     }
     // Shift Data
-    for(int i=MAX_RAW_DATA-1;i>0;i--){
+    for(uint8_t i=MAX_RAW_DATA-1;i>0;i--){
       rawdata[i] = rawdata[i-1]; 
     }
   }
@@ -420,10 +427,12 @@ void freeSpaceHandling(){
   if(ismounted == 1){
     if(1){ //TODO: Some magic on how measure free space
       digitalWrite(LOW_MEM_LED_PIN,HIGH);
-    }else{
+    }
+    else{
       digitalWrite(LOW_MEM_LED_PIN,LOW);
     }
-  }else{
+  }
+  else{
     digitalWrite(LOW_MEM_LED_PIN,LOW);
   }
 }
@@ -457,4 +466,5 @@ void loop(){
   freeSpaceHandling();
   calculateSamplingRate();
 }
+
 
