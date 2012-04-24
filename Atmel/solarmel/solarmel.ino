@@ -306,24 +306,25 @@ void mountHandling(){
 ////////////////////////////////////////////// Sampling Handling //////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void samplingHandling(){
-  if( (millis()-lastSampleTime)>sampleDelay){
+  if( (millis() - lastSampleTime) > sampleDelay){
     digitalWrite(SAMPLING_LED_PIN,HIGH);
     Serial.println("Start Sampling");
     lastSampleTime = millis(); // Reset the counter
     sensors.requestTemperatures(); //Request for all Sensors
     Serial.println("Sampling requested now reading");
-    rawdata[0].date = RTC.now();
-    rawdata[0].temperature[0] = getTemperature(TEMP_OUTDOOR);
-    rawdata[0].temperature[1] = getTemperature(TEMP_TOWARD_FLOR);
-    rawdata[0].temperature[2] = getTemperature(TEMP_RETURN_FLOW);
-    rawdata[0].temperature[3] = getTemperature(TEMP_BOILER_TOP);
+    // Write data always into 0 record, write Handling takes care of shifting data
+    rawdata[0].date           = RTC.now();
+    rawdata[0].temperature[0] = getTemperature(TEMP_OUTDOOR      );
+    rawdata[0].temperature[1] = getTemperature(TEMP_TOWARD_FLOR  );
+    rawdata[0].temperature[2] = getTemperature(TEMP_RETURN_FLOW  );
+    rawdata[0].temperature[3] = getTemperature(TEMP_BOILER_TOP   );
     rawdata[0].temperature[4] = getTemperature(TEMP_BOILER_MIDDLE);
     rawdata[0].temperature[5] = getTemperature(TEMP_BOILER_BOTTOM);
-    rawdata[0].solar          = analogRead(SOLAR_CELL_PIN);
-    rawdata[0].pump           = true;
-    rawdata[0].burn           = true;
-    rawdata[0].isStored       = false;
-    newData = 1;
+    rawdata[0].solar          = analogRead    (SOLAR_CELL_PIN    );
+    rawdata[0].pump           = true;  //dummy
+    rawdata[0].burn           = true;  //dummy
+    rawdata[0].isStored       = false; //new unstored data, will be handeled by writeHandling
+    newData = 1; // semaphore for writeHandling
     Serial.println("End Sampling");
     digitalWrite(SAMPLING_LED_PIN,LOW);
   }
@@ -335,12 +336,11 @@ void samplingHandling(){
 void writeHandling(){
   if(newData == 1){
     newData = 0;
-    if(ismounted == 1){
+    if(ismounted == SD_MOUNTED){
       if(logfile){
-        // Check for all entries if they are stored alreay
-        for(uint8_t i=MAX_RAW_DATA-1;i>=0;i--){
+        // Check for all entries if they are stored alreay backward
+        for(uint8_t i=MAX_RAW_DATA-1; i>=0; i--){
           if(rawdata[i].isStored == false){
-            // Write entry
             // Time
             logfile.print(rawdata[i].date.year(),DEC);
             logfile.print("-");
@@ -355,27 +355,20 @@ void writeHandling(){
             logfile.print(rawdata[i].date.second(),DEC);
             logfile.print(",");
             logfile.print(rawdata[i].date.unixtime(),DEC);
-            for(uint8_t t=0;t<6;t++){
-              // Temp            
+            // Temp            
+            for(uint8_t t=0; t<6; t++){
               logfile.print(",");
               logfile.print(rawdata[i].temperature[t],DEC);
             }
             logfile.print(",");
+            // Solar
             logfile.print(rawdata[i].solar,DEC);
             logfile.print(",");
-            if(rawdata[i].pump == 1){
-              logfile.print(1,DEC);
-            }
-            else{
-              logfile.print(0,DEC);
-            }
+            // Pump
+            if(rawdata[i].pump == 1){logfile.print(1,DEC);}else{logfile.print(0,DEC);}
             logfile.print(",");
-            if(rawdata[i].burn == 1){
-              logfile.print(1,DEC);
-            }
-            else{
-              logfile.print(0,DEC);
-            }
+            // Burner
+            if(rawdata[i].burn == 1){logfile.print(1,DEC);}else{logfile.print(0,DEC);}
             logfile.println();
             // Mark as stored on SD
             rawdata[i].isStored = 1;
@@ -389,13 +382,12 @@ void writeHandling(){
             }
           }
         }        
+      }else{ //Officially mounted but logfile not writeable
+        ismounted = SD_WRITE_ERROR;
       }
-      else{
-        ismounted = 2;
-      }
-    }
+    }// end of if mounted
     // Shift Data
-    for(uint8_t i=MAX_RAW_DATA-1;i>0;i--){
+    for(uint8_t i=MAX_RAW_DATA-1; i>0; i--){
       rawdata[i] = rawdata[i-1]; 
     }
   }
@@ -405,21 +397,19 @@ void writeHandling(){
 ////////////////////////////////////////////// FreeSpace Handling /////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void freeSpaceHandling(){
-  if(ismounted == 1){
+  if(ismounted == SD_MOUNTED){
     if(1){ //TODO: Some magic on how measure free space
       digitalWrite(LOW_MEM_LED_PIN,HIGH);
-    }
-    else{
+    }else{
       digitalWrite(LOW_MEM_LED_PIN,LOW);
     }
-  }
-  else{
+  }else{
     digitalWrite(LOW_MEM_LED_PIN,LOW);
   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////// FreeSpace Handling /////////////////////////////////////////////
+////////////////////////////////////////////// Sampling Rate Handling /////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void calculateSamplingRate(){
   if(rawdata[0].burn == true){
@@ -430,6 +420,8 @@ void calculateSamplingRate(){
     sampleDelay = 2000; // On Solarpower every 2 seconds
     return;
   }
+
+  // TODO: More impressing cool math here
 
   // Default
   sampleDelay = 10*1000;
