@@ -5,21 +5,29 @@
 #include <DallasTemperature.h>
 
 ////////////////// Hardware Settings ///////////////////////////////////////////////////////////////////////
-// Digital
+// Com
 #define COMRX_PIN                  0 // Serial Receive PREDEFINED
 #define COMTX_PIN                  1 // Serial Transmit PREDEFINED
+
+// Buttons
 #define MOUNT_PIN                  2 // Button to mount and unmount SD
 #define SAMPLE_NOW_PIN             3 // Button to initiate imidiately sampling
+
+// Temperature
 #define TEMP_DATA_PIN              4 // DataPin for tempsensors
+
+// LEDs
 #define TEMP_SENSOR_ERROR_LED_PIN  5 // Error with Temp Sensor
 #define SAMPLING_LED_PIN           6 // Sampling in progress.         Green LED onboard
 #define SD_MOUNTED_LED_PIN         7 // Indicates SD is mounted or not
 #define SD_WRITE_ERROR_LED_PIN     8 // Indicates an error writing to SD card
 #define SD_WRITE_DATA_LED_PIN      9 // Indicates SD access
+
+// SD
 #define SD_DATA_PIN               10 // Adafruit SD shield
-#define MOSI_PIN                  11 // MOSI
-#define MISO_PIN                  12 // MISO
-#define TEMP_SENSOR_ERROR_LED_PIN 13 // CLK
+#define MOSI_PIN                  11 // MOSI for SD shield
+#define MISO_PIN                  12 // MISO for SD shield
+#define CLK                       13 // CLK  for SD shield
 
 // Analog
 #define PUMP_WATER_PIN            A0 // Solar water pump
@@ -47,7 +55,7 @@ DeviceAddress TEMP_BOILER_BOTTOM   = {0x28, 0xD9, 0x0A, 0xC3, 0x03, 0x00, 0x00, 
 #define MOUNT_DELAY            10000 // delay between mount and unmount in millis
 #define WRITE_INTERVAL     5*60*1000 // delay for flushing data to SD
 
-#define MAX_RAW_DATA               5 // Amount of Raw data stored localy
+#define MAX_RAW_DATA               2 // Amount of Raw data stored localy
 ////////////////////////// Vars ///////////////////////////////////////////////////////////////////////////////
 // Buttons
 uint32_t          lastMountDebounceTime   = 0L;                  // Timestamp for debouncing mount push button
@@ -69,6 +77,11 @@ OneWire           oneWire(TEMP_DATA_PIN);
 DallasTemperature sensors(&oneWire);
 // RTC
 RTC_DS1307        RTC;
+// SD
+Sd2Card   card;
+SdVolume  volume;
+SdFile    root;
+const int chipSelect = 10; 
 // RAW Data
 struct Data{
   DateTime date;
@@ -79,10 +92,6 @@ struct Data{
   uint8_t  isStored;
 };
 Data rawdata[MAX_RAW_DATA];
-// SD Card
-Sd2Card  card;
-SdVolume volume;
-SdFile   root;
 
 /////////////////////////////////////////// Setup routine /////////////////////////////////////////////////////
 void setup(){
@@ -110,10 +119,10 @@ void setup(){
   pinMode     (TEMP_SENSOR_ERROR_LED_PIN, OUTPUT);
 
   // Initial
-  digitalWrite(SAMPLING_LED_PIN,          LOW);
-  digitalWrite(SD_MOUNTED_LED_PIN,        LOW);
-  digitalWrite(SD_WRITE_ERROR_LED_PIN,    LOW);
-  digitalWrite(TEMP_SENSOR_ERROR_LED_PIN, LOW);
+  digitalWrite(SAMPLING_LED_PIN,          LOW   );
+  digitalWrite(SD_MOUNTED_LED_PIN,        LOW   );
+  digitalWrite(SD_WRITE_ERROR_LED_PIN,    LOW   );
+  digitalWrite(TEMP_SENSOR_ERROR_LED_PIN, LOW   );
 
   // Timers
   lastMountDebounceTime = millis();
@@ -126,7 +135,7 @@ void setup(){
   if (! RTC.isrunning()) {
     RTC.adjust(DateTime(__DATE__, __TIME__));
   }
-
+    
   // Temperature 
   sensors.begin();
   sensors.setResolution(TEMP_12_BIT);  // Global
@@ -148,23 +157,15 @@ void setup(){
     rawdata[i].burn             = false;
     rawdata[i].isStored         = true; // No need to write empty data on SD card
   }
-
-  // Filename
+  
+  // SD
+  if (SD.begin(SD_DATA_PIN)){
+    Serial.println("SD mount successfull");
+  }else{
+    Serial.println("SD mount error");
+  }
   logdate = DateTime(RTC.now().unixtime() - (100000L)); // Set past date to force mountHandling to generate new Filename
   mountHandling();                                      // Calculate new filename
-  mount();                                              // Mount SD Card per default 
-
-/*
-  if (!card.init(SPI_HALF_SPEED, SD_DATA_PIN)) {
-    Serial.println("initialization failed. Things to check:");
-    Serial.println("* is a card is inserted?");
-    Serial.println("* Is your wiring correct?");
-    Serial.println("* did you change the chipSelect pin to match your shield or module?");
-    return;
-  } else {
-   Serial.println("Wiring is correct and a card is present."); 
-  }
-*/
 
   Serial.println("Setup ready starting mainloop");
 }
@@ -261,9 +262,11 @@ void ledHandling(){
 ////////////////////////////////////////////// Mount Handling /////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void mount(){
-  if (SD.begin(SD_DATA_PIN)) {
+//  if (SD.begin(SD_DATA_PIN)) {
     Serial.println("Trying to mount");
-    logfile = SD.open(logfilename, FILE_WRITE);
+    delay(1000);
+    logfile = SD.open("ansi.txt", FILE_WRITE);
+    delay(1000);
     if(logfile){
       Serial.println("Mounted");
       ismounted = SD_MOUNTED;
@@ -271,9 +274,10 @@ void mount(){
       Serial.println("Mount Error");
       ismounted = SD_WRITE_ERROR;
     }
-  }else{
-    ismounted   = SD_WRITE_ERROR;
-  }
+//  }else{
+//      Serial.println("SD open Error");
+//      ismounted   = SD_WRITE_ERROR;
+//  }
 }
 void umount(){
   if(logfile){
@@ -283,7 +287,7 @@ void umount(){
   ismounted = SD_UNMOUNTED;
 }
 void mountHandling(){
-  if((mountButtonState == LOW) && ((millis()-lastMountTime)>MOUNT_DELAY)){ // LOW because of internal pull up resistor
+  if((mountButtonState == LOW) && ((millis() - lastMountTime) > MOUNT_DELAY)){ // LOW because of internal pull up resistor
     Serial.println("Toggle mount");
     lastMountTime = millis(); // Reset counter
     // if mounted umount otherwise try to mount
@@ -302,8 +306,8 @@ void mountHandling(){
      (now.day()   != logdate.day()   )){
     logdate = now;
     // day
-    logfilename[9] =             now.day()%10      + '0';
-    logfilename[8] = (now.day()-(now.day()%10))/10 + '0';
+    logfilename[9] =               now.day()  %10      + '0';
+    logfilename[8] = (now.day()  -(now.day()  %10))/10 + '0';
     // month    
     logfilename[6] =               now.month()%10      + '0';
     logfilename[5] = (now.month()-(now.month()%10))/10 + '0';
@@ -316,6 +320,9 @@ void mountHandling(){
     logfilename[2] = y2 + '0';
     logfilename[1] = y3 + '0';    
     logfilename[0] = y4 + '0';
+
+    Serial.print("Setting new Filename:");
+    Serial.println(logfilename);
 
     if(ismounted == SD_MOUNTED){
       umount();
@@ -360,6 +367,7 @@ void writeHandling(){
     newData = 0;
     if(ismounted == SD_MOUNTED){
       if(logfile){
+        Serial.println("Writing data to disk");
         // Check for all entries if they are stored alreay backward
         for(uint8_t i=MAX_RAW_DATA-1; i>=0; i--){
           if(rawdata[i].isStored == false){
@@ -394,14 +402,7 @@ void writeHandling(){
             logfile.println();
             // Mark as stored on SD
             rawdata[i].isStored = 1;
-
-            // Flush data
-            if((millis()-lastsynctime)>WRITE_INTERVAL){
-              digitalWrite(SD_WRITE_DATA_LED_PIN,HIGH);
-              lastsynctime = millis();
-              logfile.flush();
-              digitalWrite(SD_WRITE_DATA_LED_PIN,LOW);
-            }
+            logfile.flush();
           }
         }        
       }else{ //Officially mounted but logfile not writeable
@@ -438,6 +439,11 @@ void calculateSamplingRate(){
 ////////////////////////////////////////////// Main Loop //////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void loop(){
+
+  if(ismounted == SD_UNMOUNTED){
+    mount();
+  }
+
   buttonHandling();
   ledHandling();
   mountHandling();
