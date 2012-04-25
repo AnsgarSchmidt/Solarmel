@@ -11,7 +11,7 @@
 #define MOUNT_PIN                  2 // Button to mount and unmount SD
 #define SAMPLE_NOW_PIN             3 // Button to initiate imidiately sampling
 #define TEMP_DATA_PIN              4 // DataPin for tempsensors
-#define LOW_MEM_LED_PIN            5 // Low on internal memory InfoLED. Red LED onboard
+#define TEMP_SENSOR_ERROR_LED_PIN  5 // Error with Temp Sensor
 #define SAMPLING_LED_PIN           6 // Sampling in progress.         Green LED onboard
 #define SD_MOUNTED_LED_PIN         7 // Indicates SD is mounted or not
 #define SD_WRITE_ERROR_LED_PIN     8 // Indicates an error writing to SD card
@@ -19,7 +19,7 @@
 #define SD_DATA_PIN               10 // Adafruit SD shield
 #define MOSI_PIN                  11 // MOSI
 #define MISO_PIN                  12 // MISO
-#define TEMP_SENSOR_ERROR_LED_PIN 13 // Error with Temp Sensor
+#define TEMP_SENSOR_ERROR_LED_PIN 13 // CLK
 
 // Analog
 #define PUMP_WATER_PIN            A0 // Solar water pump
@@ -102,7 +102,6 @@ void setup(){
   digitalWrite(SOLAR_CELL_PIN,            HIGH  );
 
   //Output Pins
-  pinMode     (LOW_MEM_LED_PIN,           OUTPUT);
   pinMode     (SAMPLING_LED_PIN,          OUTPUT);
   pinMode     (SD_MOUNTED_LED_PIN,        OUTPUT);
   pinMode     (SD_WRITE_ERROR_LED_PIN,    OUTPUT);
@@ -111,7 +110,6 @@ void setup(){
   pinMode     (TEMP_SENSOR_ERROR_LED_PIN, OUTPUT);
 
   // Initial
-  digitalWrite(LOW_MEM_LED_PIN,           LOW);
   digitalWrite(SAMPLING_LED_PIN,          LOW);
   digitalWrite(SD_MOUNTED_LED_PIN,        LOW);
   digitalWrite(SD_WRITE_ERROR_LED_PIN,    LOW);
@@ -418,21 +416,6 @@ void writeHandling(){
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////// FreeSpace Handling /////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void freeSpaceHandling(){
-  if(ismounted == SD_MOUNTED){
-    if(1){ //TODO: Some magic on how measure free space
-      digitalWrite(LOW_MEM_LED_PIN,HIGH);
-    }else{
-      digitalWrite(LOW_MEM_LED_PIN,LOW);
-    }
-  }else{
-    digitalWrite(LOW_MEM_LED_PIN,LOW);
-  }
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////// Sampling Rate Handling /////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void calculateSamplingRate(){
@@ -460,7 +443,6 @@ void loop(){
   mountHandling();
   samplingHandling();
   writeHandling();
-  freeSpaceHandling();
   calculateSamplingRate();
 }
 
