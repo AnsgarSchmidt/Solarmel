@@ -10,7 +10,7 @@
 #define COMTX_PIN                  1 // Serial Transmit PREDEFINED
 
 // Buttons
-#define MOUNT_PIN                  2 // Button to mount and unmount SD
+#define D2_PIN                     2 //
 #define SAMPLE_NOW_PIN             3 // Button to initiate imidiately sampling
 
 // Temperature
@@ -19,7 +19,7 @@
 // LEDs
 #define TEMP_SENSOR_ERROR_LED_PIN  5 // Error with Temp Sensor
 #define SAMPLING_LED_PIN           6 // Sampling in progress.         Green LED onboard
-#define SD_MOUNTED_LED_PIN         7 // Indicates SD is mounted or not
+#define D7_PIN                     7 //
 #define SD_WRITE_ERROR_LED_PIN     8 // Indicates an error writing to SD card
 #define SD_WRITE_DATA_LED_PIN      9 // Indicates SD access
 
@@ -46,32 +46,20 @@ DeviceAddress TEMP_BOILER_MIDDLE   = {0x28, 0xF5, 0x06, 0xC3, 0x03, 0x00, 0x00, 
 DeviceAddress TEMP_BOILER_BOTTOM   = {0x28, 0xD9, 0x0A, 0xC3, 0x03, 0x00, 0x00, 0xA4};
 
 ////////////////////// Constants //////////////////////////////////////////////////////////////////////////////
-// SD Mount Defines
-#define SD_UNMOUNTED               0 
-#define SD_MOUNTED                 1
-#define SD_WRITE_ERROR            10
-
 #define DEBOUNCE_DELAY            50 // debounceDelay for Button in millis
 #define MOUNT_DELAY            10000 // delay between mount and unmount in millis
 #define WRITE_INTERVAL     5*60*1000 // delay for flushing data to SD
 
 #define MAX_RAW_DATA               2 // Amount of Raw data stored localy
 ////////////////////////// Vars ///////////////////////////////////////////////////////////////////////////////
-// Buttons
-uint32_t          lastMountDebounceTime   = 0L;                  // Timestamp for debouncing mount push button
-uint8_t           lastMountButtonState    = LOW;                 // the previous reading from the input pin
-uint8_t           mountButtonState        = LOW;                 // the debounced status for input pin
-uint32_t          lastMountTime           = 0L;                  // Timestamp for (un)mounting. 
-// Status
-uint8_t           ismounted               = SD_UNMOUNTED;        // SD card mount state, see SD mount defines
-uint8_t           newData                 = false;               // New Data available to store
 // Data
-uint16_t          sampleDelay             = 10000;               // Time between samples, initial 10 secs. Will be chanced depending on data
-uint32_t          lastSampleTime          = 0L;                  // Timestamp of last sampling
-File              logfile;                                       // Logfile itself
-char              logfilename[]           = "1970-01-01-00.csv"; // CurrentFileNameForLogging YYYY-MM-DD-VV.csv VV=Logfile type version number
-DateTime          logdate;                                       // Object to store the logfilename as datetime
-uint32_t          lastsynctime            = 0L;                  // Timestamp last time the data where written to the SD card
+uint16_t          sampleDelay             = 10000;          // Time between samples, initial 10 secs. Will be chanced depending on data
+uint32_t          lastSampleTime          = 0L;             // Timestamp of last sampling
+uint8_t           newData                 = false;
+// Filehandling
+File              logfile;                                  // Logfile itself
+char              logfilename[]           = "01-01-00.csv"; // CurrentFileNameForLogging MM-DD-VV.csv VV=Logfile type version number
+DateTime          logdate;                                  // Object to store the logfilename as datetime
 // Temperature
 OneWire           oneWire(TEMP_DATA_PIN);
 DallasTemperature sensors(&oneWire);
@@ -81,7 +69,7 @@ RTC_DS1307        RTC;
 Sd2Card   card;
 SdVolume  volume;
 SdFile    root;
-const int chipSelect = 10; 
+const int chipSelect = 10; // ?????????????????
 // RAW Data
 struct Data{
   DateTime date;
@@ -101,18 +89,14 @@ void setup(){
   Serial.println("Serial communication established now setting up");
 
   //Pins input
-  pinMode     (MOUNT_PIN,                 INPUT );
   pinMode     (SAMPLE_NOW_PIN,            INPUT );
   pinMode     (SOLAR_CELL_PIN,            INPUT );
 
   //Enable Pull up resistors
-  digitalWrite(MOUNT_PIN,                 HIGH  );
   digitalWrite(SAMPLE_NOW_PIN,            HIGH  );
-  digitalWrite(SOLAR_CELL_PIN,            HIGH  );
 
   //Output Pins
   pinMode     (SAMPLING_LED_PIN,          OUTPUT);
-  pinMode     (SD_MOUNTED_LED_PIN,        OUTPUT);
   pinMode     (SD_WRITE_ERROR_LED_PIN,    OUTPUT);
   pinMode     (SD_DATA_PIN,               OUTPUT);
   pinMode     (TEMP_DATA_PIN,             OUTPUT);
@@ -120,13 +104,10 @@ void setup(){
 
   // Initial
   digitalWrite(SAMPLING_LED_PIN,          LOW   );
-  digitalWrite(SD_MOUNTED_LED_PIN,        LOW   );
   digitalWrite(SD_WRITE_ERROR_LED_PIN,    LOW   );
   digitalWrite(TEMP_SENSOR_ERROR_LED_PIN, LOW   );
 
   // Timers
-  lastMountDebounceTime = millis();
-  lastMountTime         = millis();
   lastSampleTime        = millis();
 
   // RTC
@@ -165,7 +146,7 @@ void setup(){
     Serial.println("SD mount error");
   }
   logdate = DateTime(RTC.now().unixtime() - (100000L)); // Set past date to force mountHandling to generate new Filename
-  mountHandling();                                      // Calculate new filename
+  filenameHandling();                                   // Calculate new filename
 
   Serial.println("Setup ready starting mainloop");
 }
@@ -223,18 +204,6 @@ void printSensorAddress(DeviceAddress insensor){
 /////////////////////////////////////////// Button Handling ///////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void buttonHandling(){
-  // Mount
-  uint8_t reading = digitalRead(MOUNT_PIN);
-  if (reading != lastMountButtonState) {
-    lastMountDebounceTime = millis();
-  } 
-  if ((millis() - lastMountDebounceTime) > DEBOUNCE_DELAY) {
-    // whatever the reading is at, it's been there for longer
-    // than the debounce delay, so take it as the actual current state:
-    mountButtonState = reading;
-  }
-  lastMountButtonState = reading;
-
   // Sample now
   if(digitalRead(SAMPLE_NOW_PIN) == LOW){ //Button inverted for pull up resistor
     Serial.println("SAMPLE NOW");
@@ -243,91 +212,22 @@ void buttonHandling(){
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////// LED Handling ///////////////////////////////////////////////////
+/////////////////////////////////// Filenamehandling Handling /////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void ledHandling(){
-  if(ismounted == SD_UNMOUNTED){
-    digitalWrite(SD_MOUNTED_LED_PIN,     LOW);
-    digitalWrite(SD_WRITE_ERROR_LED_PIN, LOW);
-  }else if(ismounted == SD_MOUNTED){
-    digitalWrite(SD_MOUNTED_LED_PIN,     HIGH);
-    digitalWrite(SD_WRITE_ERROR_LED_PIN, LOW );
-  }else{
-    digitalWrite(SD_MOUNTED_LED_PIN,     LOW );
-    digitalWrite(SD_WRITE_ERROR_LED_PIN, HIGH);    
-  }
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////// Mount Handling /////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void mount(){
-//  if (SD.begin(SD_DATA_PIN)) {
-    Serial.println("Trying to mount");
-    delay(1000);
-    logfile = SD.open("ansi.txt", FILE_WRITE);
-    delay(1000);
-    if(logfile){
-      Serial.println("Mounted");
-      ismounted = SD_MOUNTED;
-    }else{
-      Serial.println("Mount Error");
-      ismounted = SD_WRITE_ERROR;
-    }
-//  }else{
-//      Serial.println("SD open Error");
-//      ismounted   = SD_WRITE_ERROR;
-//  }
-}
-void umount(){
-  if(logfile){
-    logfile.flush();
-    logfile.close();
-  }
-  ismounted = SD_UNMOUNTED;
-}
-void mountHandling(){
-  if((mountButtonState == LOW) && ((millis() - lastMountTime) > MOUNT_DELAY)){ // LOW because of internal pull up resistor
-    Serial.println("Toggle mount");
-    lastMountTime = millis(); // Reset counter
-    // if mounted umount otherwise try to mount
-    if(ismounted == SD_UNMOUNTED){
-      mount();
-    }else if(ismounted == SD_MOUNTED){
-      umount();
-    }else{ // ERROR STATE
-      ismounted = SD_UNMOUNTED;            
-    }
-  }
-  // File name Handling
+void filenameHandling(){
   DateTime now = RTC.now();
   if((now.year()  != logdate.year()  ) || 
      (now.month() != logdate.month() ) ||
      (now.day()   != logdate.day()   )){
     logdate = now;
     // day
-    logfilename[9] =               now.day()  %10      + '0';
-    logfilename[8] = (now.day()  -(now.day()  %10))/10 + '0';
+    logfilename[4] =               now.day()  %10      + '0';
+    logfilename[3] = (now.day()  -(now.day()  %10))/10 + '0';
     // month    
-    logfilename[6] =               now.month()%10      + '0';
-    logfilename[5] = (now.month()-(now.month()%10))/10 + '0';
-    // year
-    uint8_t y1 =   now.year()                           %10;
-    uint8_t y2 = ((now.year()                 -y1)/  10)%10;
-    uint8_t y3 = ((now.year()         -(y2*10)-y1)/ 100)%10;
-    uint8_t y4 = ((now.year()-(y3*100)-(y2*10)-y1)/1000)%10;
-    logfilename[3] = y1 + '0';
-    logfilename[2] = y2 + '0';
-    logfilename[1] = y3 + '0';    
-    logfilename[0] = y4 + '0';
-
+    logfilename[1] =               now.month()%10      + '0';
+    logfilename[0] = (now.month()-(now.month()%10))/10 + '0';
     Serial.print("Setting new Filename:");
     Serial.println(logfilename);
-
-    if(ismounted == SD_MOUNTED){
-      umount();
-      mount();
-    }
   }
 }
 
@@ -353,7 +253,7 @@ void samplingHandling(){
     rawdata[0].pump           = false;  //dummy
     rawdata[0].burn           = false;  //dummy
     rawdata[0].isStored       = false; //new unstored data, will be handeled by writeHandling
-    newData = 1; // semaphore for writeHandling
+    newData = true; // semaphore for writeHandling
     Serial.println("End Sampling");
     digitalWrite(SAMPLING_LED_PIN,LOW);
   }
@@ -365,12 +265,15 @@ void samplingHandling(){
 void writeHandling(){
   if(newData == 1){
     newData = 0;
-    if(ismounted == SD_MOUNTED){
-      if(logfile){
-        Serial.println("Writing data to disk");
-        // Check for all entries if they are stored alreay backward
-        for(uint8_t i=MAX_RAW_DATA-1; i>=0; i--){
+    logfile = SD.open(logfilename, FILE_WRITE);
+    if(logfile){
+      Serial.println("Writing data to disk");
+      // Check for all entries if they are stored alreay backward
+      for(int16_t i=(MAX_RAW_DATA-1); i>=0; i--){
+          Serial.print("In Loop ");
+          Serial.println(i);
           if(rawdata[i].isStored == false){
+            Serial.println("Storing");
             // Time
             logfile.print(rawdata[i].date.year(),DEC);
             logfile.print("-");
@@ -402,13 +305,14 @@ void writeHandling(){
             logfile.println();
             // Mark as stored on SD
             rawdata[i].isStored = 1;
-            logfile.flush();
           }
-        }        
-      }else{ //Officially mounted but logfile not writeable
-        ismounted = SD_WRITE_ERROR;
-      }
-    }// end of if mounted
+      }//for
+      logfile.close();
+      Serial.println("logfile closed");
+    }else{
+      Serial.print("can not open file:");
+      Serial.println(logfilename);
+    }
     // Shift Data
     for(uint8_t i=MAX_RAW_DATA-1; i>0; i--){
       rawdata[i] = rawdata[i-1]; 
@@ -439,17 +343,10 @@ void calculateSamplingRate(){
 ////////////////////////////////////////////// Main Loop //////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void loop(){
-
-  if(ismounted == SD_UNMOUNTED){
-    mount();
-  }
-
   buttonHandling();
-  ledHandling();
-  mountHandling();
+  filenameHandling();
   samplingHandling();
   writeHandling();
   calculateSamplingRate();
 }
-
 
