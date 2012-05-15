@@ -74,7 +74,7 @@ const int chipSelect = 10; // ?????????????????
 struct Data{
   DateTime date;
   float    temperature[6];
-  float    solar;
+  uint16_t solar;
   uint8_t  pump;
   uint8_t  burn;
   uint8_t  isStored;
@@ -181,9 +181,9 @@ float getTemperature(DeviceAddress insensor){
       Serial.println();      
       digitalWrite(TEMP_SENSOR_ERROR_LED_PIN, HIGH);
     }else{
-      printSensorAddress(insensor);
-      Serial.print(" Temperature:");
-      Serial.println(temp);
+//      printSensorAddress(insensor);
+//      Serial.print(" Temperature:");
+//      Serial.println(temp);
     }
     return temp;
   }else{
@@ -295,6 +295,7 @@ void writeHandling(){
             }
             logfile.print(",");
             // Solar
+            Serial.println(rawdata[i].solar);
             logfile.print(rawdata[i].solar,DEC);
             logfile.print(",");
             // Pump
@@ -334,6 +335,10 @@ void calculateSamplingRate(){
   }
 
   // TODO: More impressing cool math here
+  if(true){
+   sampleDelay=1000;
+   return;
+  }
 
   // Default
   sampleDelay = 10*1000;
